@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>メモ帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style id="pageStyle"></style>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: "Noto Sans JP", "BIZ UDP Gothic", "Hiragino Kaku Gothic ProN", sans-serif;
+    color: #1a1a1a; background: #e8e8e8; display: flex; flex-direction: column; height: 100vh;
+  }
+  button { font-family: inherit; font-size: 13px; padding: 5px 10px; border: 1px solid #bbb; background: #fff; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #f0f0f0; }
+  button.primary { background: #2f6fb2; color: #fff; border-color: #2f6fb2; }
+  button.primary:hover { background: #285f99; }
+  button.danger { color: #b02a2a; border-color: #d8a0a0; }
+  input, select { font-family: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid #bbb; border-radius: 4px; background: #fff; color: #1a1a1a; }
+  label { font-size: 12px; color: #444; }
+
+  .topbar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #fff; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+  .topbar .appname { font-weight: 700; font-size: 15px; margin-right: 6px; }
+  .topbar .spacer { flex: 1; }
+  .status { font-size: 12px; color: #555; min-width: 180px; text-align: right; }
+  .status.error { color: #b02a2a; }
+
+  .banner { padding: 8px 12px; font-size: 13px; display: none; }
+  .banner.show { display: block; }
+  .banner.local { background: #fff3cd; border-bottom: 1px solid #e0cf8f; }
+  .banner.conflict { background: #fde8e8; border-bottom: 1px solid #e0a0a0; }
+  .banner button { margin-left: 8px; }
+
+  .layout { display: flex; flex: 1; min-height: 0; }
+  .sidebar { width: 260px; min-width: 200px; background: #f7f7f7; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
+  .sidebar .side-head { padding: 8px; border-bottom: 1px solid #ddd; }
+  .sidebar .side-head button { width: 100%; }
+  .memo-list { flex: 1; overflow-y: auto; }
+  .memo-item { padding: 8px 10px; border-bottom: 1px solid #e2e2e2; cursor: pointer; }
+  .memo-item:hover { background: #eee; }
+  .memo-item.active { background: #dbeafe; }
+  .memo-item .t { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .memo-item .d { font-size: 11px; color: #777; margin-top: 2px; }
+  .memo-empty { padding: 12px; font-size: 13px; color: #777; }
+
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: #fff; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
+  .toolbar .sep { width: 1px; height: 22px; background: #ddd; margin: 0 2px; }
+  .toolbar input[type="number"] { width: 58px; }
+  .toolbar input.font-input { width: 170px; }
+  .work { flex: 1; display: flex; min-height: 0; }
+  .sheet-wrap { flex: 1; overflow: auto; padding: 24px 12px 48px; }
+  .sheet {
+    background: #fff; margin: 0 auto; box-shadow: 0 1px 6px rgba(0,0,0,0.25);
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  #editor { outline: none; min-height: 100%; overflow-wrap: break-word; }
+  #editor > div, #editor > p { margin: 0; }
+
+  .settings { width: 248px; min-width: 248px; background: #f7f7f7; border-left: 1px solid #ccc; overflow-y: auto; padding: 10px; }
+  .settings h3 { font-size: 13px; margin: 12px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
+  .settings h3:first-child { margin-top: 0; }
+  .settings .row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 5px 0; }
+  .settings .row input[type="number"] { width: 64px; }
+  .settings .row input[type="text"] { width: 120px; }
+  .settings .row select { width: 120px; }
+  .settings .full { width: 100%; margin: 4px 0; }
+  .settings .note { font-size: 11px; color: #777; line-height: 1.5; }
+
+  dialog { border: 1px solid #aaa; border-radius: 6px; padding: 18px; width: 420px; max-width: 92vw; }
+  dialog h2 { font-size: 15px; margin: 0 0 10px; }
+  dialog .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0; }
+  dialog .row input { width: 240px; }
+  dialog .note { font-size: 12px; color: #666; line-height: 1.6; }
+  dialog .buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+  /* フォント確認画面 */
+  #fontsView { display: none; flex-direction: column; height: 100vh; background: #fff; }
+  #fontsView.show { display: flex; }
+  .fonts-head { padding: 10px 14px; border-bottom: 1px solid #ccc; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .fonts-head .title { font-weight: 700; font-size: 15px; }
+  .fonts-note { font-size: 12px; color: #666; padding: 6px 14px; border-bottom: 1px solid #eee; line-height: 1.6; }
+  .fonts-body { flex: 1; display: flex; min-height: 0; }
+  .font-grid { flex: 1; overflow-y: auto; padding: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; align-content: start; }
+  .font-cell { border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px; cursor: pointer; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #fff; }
+  .font-cell:hover { background: #f0f6ff; }
+  .font-cell.selected { border-color: #2f6fb2; background: #dbeafe; }
+  .font-preview { width: 380px; min-width: 300px; border-left: 1px solid #ccc; padding: 14px; overflow-y: auto; background: #fafafa; }
+  .font-preview .fname { font-weight: 700; font-size: 14px; margin-bottom: 8px; word-break: break-all; }
+  .font-preview .sample { font-size: 26px; line-height: 1.5; margin: 6px 0; word-break: break-all; }
+  .font-preview .sample.small { font-size: 17px; }
+  .font-preview input { width: 100%; margin: 8px 0; }
+  .hidden { display: none !important; }
+
+  @media (max-width: 900px) {
+    .sidebar { width: 180px; min-width: 150px; }
+    .settings { display: none; }
+    .font-preview { width: 280px; min-width: 220px; }
+  }
+  @media print {
+    body { background: #fff; height: auto; display: block; }
+    .topbar, .sidebar, .toolbar, .settings, .banner, #fontsView { display: none !important; }
+    .layout, .main, .work { display: block; }
+    .sheet-wrap { overflow: visible; padding: 0; }
+    .sheet { box-shadow: none; margin: 0; width: auto !important; min-height: auto !important; padding: 0 !important; }
+    #editor { min-height: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="appView" style="display:flex;flex-direction:column;height:100vh;">
+  <div class="topbar">
+    <span class="appname">メモ帳</span>
+    <button id="btnNewTop" type="button">＋ 新規メモ</button>
+    <button id="btnSave" type="button" class="primary">保存</button>
+    <button id="btnPrint" type="button">印刷</button>
+    <button id="btnFonts" type="button">フォント確認</button>
+    <span class="spacer"></span>
+    <span class="status" id="statusLine">保存済み</span>
+    <button id="btnGhSettings" type="button">⚙ GitHub設定</button>
+  </div>
+
+  <div class="banner local" id="localBanner">GitHub未設定のため、このPC内のみに保存しています</div>
+  <div class="banner conflict" id="conflictBanner">
+    <span>他のPCで保存された新しい版がGitHubにあります。このPCの内容はまだ上書きしていません。</span>
+    <button id="btnLoadLatest" type="button">相手の最新版を読み直す</button>
+    <button id="btnForceSave" type="button">自分の内容で上書きする</button>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="side-head"><button id="btnNew" type="button">＋ 新しいメモ</button></div>
+      <div class="memo-list" id="memoList"></div>
+    </aside>
+
+    <div class="main">
+      <div class="toolbar">
+        <label>フォント <input class="font-input" id="tbFont" type="text" list="fontList" placeholder="フォント名"></label>
+        <datalist id="fontList"></datalist>
+        <label>色 <input id="tbColor" type="color" value="#1a1a1a"></label>
+        <label>大きさ <input id="tbSize" type="number" min="6" max="72" step="1" value="11"> pt</label>
+        <button id="btnBold" type="button" title="選択した文字を太字にします"><b>太字</b></button>
+        <span class="sep"></span>
+        <button id="btnApplySel" type="button">選択部分に適用</button>
+        <button id="btnApplyAll" type="button">文書全体に適用</button>
+        <span class="sep"></span>
+        <button id="btnDelete" type="button" class="danger">このメモを削除</button>
+      </div>
+
+      <div class="work">
+        <div class="sheet-wrap">
+          <div class="sheet" id="sheet">
+            <div id="editor" contenteditable="true" spellcheck="false"></div>
+          </div>
+        </div>
+
+        <aside class="settings">
+          <h3>ページ設定</h3>
+          <div class="row"><label>用紙</label>
+            <select id="setPaper">
+              <option value="A4">A4</option>
+              <option value="B5">B5</option>
+            </select>
+          </div>
+          <div class="row"><label>余白・上 (mm)</label><input id="setMarginTop" type="number" min="0" max="100" step="1"></div>
+          <div class="row"><label>余白・下 (mm)</label><input id="setMarginBottom" type="number" min="0" max="100" step="1"></div>
+          <div class="row"><label>余白・左 (mm)</label><input id="setMarginLeft" type="number" min="0" max="100" step="1"></div>
+          <div class="row"><label>余白・右 (mm)</label><input id="setMarginRight" type="number" min="0" max="100" step="1"></div>
+          <div class="row"><label>行間</label><input id="setLineSpacing" type="number" min="0.8" max="3" step="0.1"></div>
+          <h3>文字の基本設定</h3>
+          <div class="row"><label>基本フォント</label><input id="setFont" type="text" list="fontList"></div>
+          <div class="row"><label>基本の文字色</label><input id="setColor" type="color"></div>
+          <div class="row"><label>見出しの大きさ (pt)</label><input id="setHeadingSize" type="number" min="8" max="72" step="1"></div>
+          <div class="row"><label>本文の大きさ (pt)</label><input id="setBodySize" type="number" min="6" max="72" step="1"></div>
+          <p class="note">1行目は自動で見出しの大きさ・太字になります（メモ一覧のタイトルも1行目です）。余白は画面の白い紙の内側と、印刷時の余白に反映されます。</p>
+          <h3>書式テンプレート</h3>
+          <input class="full" id="tplName" type="text" placeholder="テンプレート名">
+          <button class="full" id="btnTplSave" type="button">現在の設定をテンプレートに保存</button>
+          <select class="full" id="tplList" size="4"></select>
+          <button class="full" id="btnTplApply" type="button">選んだテンプレートを適用</button>
+          <button class="full" id="btnTplDelete" type="button">選んだテンプレートを削除</button>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="fontsView">
+  <div class="fonts-head">
+    <span class="title">フォント確認</span>
+    <button id="btnLoadFonts" type="button" class="primary">このPCのフォント一覧を取得</button>
+    <button id="btnBackToEditor" type="button">メモに戻る</button>
+  </div>
+  <div class="fonts-note" id="fontsNote">初回は、ブラウザから「このPCのフォントへのアクセス」を許可する画面が出ます。フォント名をクリックすると、右側に見本が表示されます。</div>
+  <div class="fonts-body">
+    <div class="font-grid" id="fontGrid"><div style="color:#777;font-size:13px;">まだ取得していません。「このPCのフォント一覧を取得」を押してください。</div></div>
+    <div class="font-preview" id="fontPreview">
+      <div class="fname" id="pvName">フォントが選ばれていません</div>
+      <div class="sample" id="pvDigits">0123456789</div>
+      <div class="sample" id="pvKana">あいうえお アイウエオ</div>
+      <div class="sample" id="pvKanji">山川田中小雨春夏秋冬 漢字の見本 永国</div>
+      <label>自分の文字で試す</label>
+      <input id="pvCustomInput" type="text" placeholder="ここに入力した文字も見本に表示されます">
+      <div class="sample small" id="pvCustom"></div>
+      <button id="btnUseFont" type="button" class="primary" disabled>このフォントを使う</button>
+    </div>
+  </div>
+</div>
+
+<dialog id="ghDialog">
+  <h2>GitHub設定</h2>
+  <p class="note">メモのデータを置く場所（データ用の箱）の情報です。トークンはこのPCの中だけに保存され、データファイルには入りません。</p>
+  <div class="row"><label>アカウント名 (owner)</label><input id="ghOwner" type="text"></div>
+  <div class="row"><label>データ用の箱の名前</label><input id="ghRepo" type="text"></div>
+  <div class="row"><label>データファイル名</label><input id="ghPath" type="text"></div>
+  <div class="row"><label>トークン</label><input id="ghToken" type="password" autocomplete="off"></div>
+  <div class="buttons">
+    <button id="btnGhCancel" type="button">キャンセル</button>
+    <button id="btnGhSave" type="button" class="primary">保存して接続を試す</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+
+/* ===== 基本定義 ===== */
+var LS_GH = 'memoAppGithub.ghSettings.v1';
+var LS_DATA = 'memoAppGithub.data.v1';
+var LS_DIRTY = 'memoAppGithub.unsynced.v1';
+var LS_SHA = 'memoAppGithub.sha.v1';
+
+var PAPERS = {
+  A4: { w: 210, h: 297 },
+  B5: { w: 182, h: 257 }
+};
+var COMMON_FONTS = [
+  'BIZ UDGothic', 'Noto Sans JP', 'BIZ UDP Gothic', 'BIZ UDP Mincho', 'Yu Gothic', 'Yu Mincho',
+  'Meiryo', 'Hiragino Kaku Gothic ProN', 'Hiragino Mincho ProN',
+  'MS Gothic', 'MS Mincho', 'Arial', 'Times New Roman', 'Georgia', 'Verdana'
+];
+/* 既定の基本フォント：BIZ UDGothic（等幅）を先頭とする指定。Windows標準搭載のためWebフォント不要 */
+var DEFAULT_FONT_STACK = '"BIZ UDGothic", "BIZ UDゴシック", "Noto Sans Mono CJK JP", Consolas, monospace';
+/* 設定欄に表示・保存する既定のフォント名は単体の名前だけにする（積み重ね指定は表示しない） */
+var DEFAULT_FONT_FAMILY = 'BIZ UDGothic';
+
+function defaultSettings() {
+  return {
+    paper: 'A4',
+    marginTop: 20, marginBottom: 20, marginLeft: 20, marginRight: 20,
+    lineSpacing: 1.4,
+    headingSize: 16,
+    bodySize: 11,
+    fontFamily: DEFAULT_FONT_FAMILY,
+    textColor: '#1a1a1a'
+  };
+}
+function cloneSettings(s) {
+  var d = defaultSettings();
+  if (s) { for (var k in d) { if (s[k] !== undefined) { d[k] = s[k]; } } }
+  return d;
+}
+function uid() {
+  return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+function fontStack(name) {
+  var n = (name || '').trim();
+  if (!n) { return DEFAULT_FONT_STACK; }
+  if (n.indexOf(',') >= 0) { return n.replace(/;/g, ''); }
+  var clean = n.replace(/[";]/g, '');
+  if (clean === 'BIZ UDGothic' || clean === 'BIZ UDゴシック') { return DEFAULT_FONT_STACK; }
+  return '"' + clean + '", "Noto Sans JP", "BIZ UDP Gothic", "Hiragino Kaku Gothic ProN", sans-serif';
+}
+
+/* ===== 状態 ===== */
+var ghSettings = { owner: 'cooljoe777-sudo', repo: 'memo-data', path: 'data.json', token: '' };
+try {
+  var savedGh = JSON.parse(localStorage.getItem(LS_GH) || 'null');
+  if (savedGh) { for (var gk in ghSettings) { if (savedGh[gk] !== undefined) { ghSettings[gk] = savedGh[gk]; } } }
+} catch (e) { /* 壊れた設定は初期値で続行 */ }
+
+var data = { version: 1, memos: [], templates: [] };
+try {
+  var savedData = JSON.parse(localStorage.getItem(LS_DATA) || 'null');
+  if (savedData && Array.isArray(savedData.memos)) {
+    data.memos = savedData.memos.map(function (m) {
+      return { id: m.id || uid(), html: m.html || '', settings: cloneSettings(m.settings), updatedAt: m.updatedAt || 0 };
+    });
+    data.templates = Array.isArray(savedData.templates) ? savedData.templates.map(function (t) {
+      return { name: t.name, settings: cloneSettings(t.settings) };
+    }) : [];
+  }
+} catch (e) { /* 壊れたデータは空で続行 */ }
+
+var currentId = null;
+var fileSha = localStorage.getItem(LS_SHA) || null;
+var unsynced = localStorage.getItem(LS_DIRTY) === '1';
+var syncTimer = null;
+var listTimer = null;
+var savedRange = null;
+var fontFamilies = [];
+var selectedFontFamily = null;
+
+function currentMemo() {
+  for (var i = 0; i < data.memos.length; i++) { if (data.memos[i].id === currentId) { return data.memos[i]; } }
+  return null;
+}
+function ghConfigured() {
+  return !!(ghSettings.owner && ghSettings.repo && ghSettings.path && ghSettings.token);
+}
+
+/* ===== DOM ===== */
+function el(id) { return document.getElementById(id); }
+var editor = el('editor'), sheet = el('sheet'), statusLine = el('statusLine');
+
+function setStatus(text, isError) {
+  statusLine.textContent = text;
+  statusLine.className = 'status' + (isError ? ' error' : '');
+}
+
+/* ===== ローカル保存 ===== */
+function saveLocal(markUnsynced) {
+  try {
+    localStorage.setItem(LS_DATA, JSON.stringify(data));
+    if (markUnsynced) {
+      unsynced = true;
+      localStorage.setItem(LS_DIRTY, '1');
+    }
+  } catch (e) {
+    setStatus('保存エラー（内容はこのPCに残っています）', true);
+  }
+}
+function clearUnsynced() {
+  unsynced = false;
+  localStorage.removeItem(LS_DIRTY);
+}
+
+/* ===== タイトル抽出（1行目） ===== */
+function extractTitle(html) {
+  var tmp = document.createElement('div');
+  tmp.innerHTML = (html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p|li)>/gi, '\n');
+  var text = tmp.textContent || '';
+  var lines = text.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].replace(/ /g, ' ').trim();
+    if (t) { return t; }
+  }
+  return '無題のメモ';
+}
+function formatDate(ts) {
+  if (!ts) { return ''; }
+  var d = new Date(ts);
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '/' + p(d.getMonth() + 1) + '/' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+/* ===== メモ一覧 ===== */
+function renderMemoList() {
+  var list = el('memoList');
+  list.innerHTML = '';
+  var sorted = data.memos.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  if (sorted.length === 0) {
+    var empty = document.createElement('div');
+    empty.className = 'memo-empty';
+    empty.textContent = 'メモがありません';
+    list.appendChild(empty);
+    return;
+  }
+  sorted.forEach(function (m) {
+    var item = document.createElement('div');
+    item.className = 'memo-item' + (m.id === currentId ? ' active' : '');
+    var t = document.createElement('div');
+    t.className = 't';
+    t.textContent = extractTitle(m.html);
+    var d = document.createElement('div');
+    d.className = 'd';
+    d.textContent = formatDate(m.updatedAt);
+    item.appendChild(t);
+    item.appendChild(d);
+    item.addEventListener('click', function () { openMemo(m.id); });
+    list.appendChild(item);
+  });
+}
+
+/* ===== 設定を画面へ反映 ===== */
+function applySettingsToView() {
+  var m = currentMemo();
+  if (!m) { return; }
+  var s = m.settings;
+  var paper = PAPERS[s.paper] || PAPERS.A4;
+  sheet.style.width = paper.w + 'mm';
+  sheet.style.minHeight = paper.h + 'mm';
+  sheet.style.padding = s.marginTop + 'mm ' + s.marginRight + 'mm ' + s.marginBottom + 'mm ' + s.marginLeft + 'mm';
+  editor.style.fontFamily = fontStack(s.fontFamily);
+  editor.style.fontSize = s.bodySize + 'pt';
+  editor.style.color = s.textColor;
+  editor.style.lineHeight = String(s.lineSpacing);
+  el('pageStyle').textContent = '@page { size: ' + s.paper + ' portrait; margin: ' +
+    s.marginTop + 'mm ' + s.marginRight + 'mm ' + s.marginBottom + 'mm ' + s.marginLeft + 'mm; }';
+  styleFirstLine();
+}
+
+/* 1行目（最初のブロック）を見出しスタイルにする。前の見出し指定は dataset で管理し、外れた行は戻す */
+function styleFirstLine() {
+  var s = currentMemo() ? currentMemo().settings : defaultSettings();
+  var first = null;
+  for (var i = 0; i < editor.childNodes.length; i++) {
+    var node = editor.childNodes[i];
+    if (node.nodeType === 1) { first = node; break; }
+    if (node.nodeType === 3 && node.textContent.trim()) { break; }
+  }
+  var blocks = editor.querySelectorAll(':scope > div, :scope > p');
+  blocks.forEach(function (b) {
+    if (b === first) {
+      b.dataset.heading = '1';
+      b.style.fontSize = s.headingSize + 'pt';
+      b.style.fontWeight = '700';
+    } else if (b.dataset.heading === '1') {
+      delete b.dataset.heading;
+      b.style.fontSize = '';
+      b.style.fontWeight = '';
+    }
+  });
+  if (!first && editor.textContent.trim()) {
+    /* ブロック要素が無い素のテキストだけの場合は包み直す */
+    var html = editor.innerHTML;
+    editor.innerHTML = '<div>' + html + '</div>';
+    styleFirstLine();
+  }
+}
+
+/* ===== 設定パネル ===== */
+function fillSettingsPanel() {
+  var m = currentMemo();
+  if (!m) { return; }
+  var s = m.settings;
+  el('setPaper').value = s.paper;
+  el('setMarginTop').value = s.marginTop;
+  el('setMarginBottom').value = s.marginBottom;
+  el('setMarginLeft').value = s.marginLeft;
+  el('setMarginRight').value = s.marginRight;
+  el('setLineSpacing').value = s.lineSpacing;
+  el('setFont').value = s.fontFamily;
+  el('setColor').value = s.textColor;
+  el('setHeadingSize').value = s.headingSize;
+  el('setBodySize').value = s.bodySize;
+  el('tbFont').value = s.fontFamily;
+  el('tbColor').value = s.textColor;
+  el('tbSize').value = s.bodySize;
+}
+function numVal(id, fallback, min, max) {
+  var v = parseFloat(el(id).value);
+  if (isNaN(v)) { v = fallback; }
+  if (v < min) { v = min; }
+  if (v > max) { v = max; }
+  return v;
+}
+function readSettingsPanel() {
+  var m = currentMemo();
+  if (!m) { return; }
+  var s = m.settings;
+  s.paper = el('setPaper').value === 'B5' ? 'B5' : 'A4';
+  s.marginTop = numVal('setMarginTop', 20, 0, 100);
+  s.marginBottom = numVal('setMarginBottom', 20, 0, 100);
+  s.marginLeft = numVal('setMarginLeft', 20, 0, 100);
+  s.marginRight = numVal('setMarginRight', 20, 0, 100);
+  s.lineSpacing = numVal('setLineSpacing', 1.4, 0.8, 3);
+  s.fontFamily = el('setFont').value.trim() || DEFAULT_FONT_FAMILY;
+  s.textColor = el('setColor').value || '#1a1a1a';
+  s.headingSize = numVal('setHeadingSize', 16, 8, 72);
+  s.bodySize = numVal('setBodySize', 11, 6, 72);
+  m.updatedAt = Date.now();
+  applySettingsToView();
+  fillDerivedToolbar();
+  onDataChanged();
+}
+function fillDerivedToolbar() {
+  var m = currentMemo();
+  if (!m) { return; }
+  el('tbFont').value = m.settings.fontFamily;
+  el('tbColor').value = m.settings.textColor;
+  el('tbSize').value = m.settings.bodySize;
+}
+['setPaper', 'setMarginTop', 'setMarginBottom', 'setMarginLeft', 'setMarginRight',
+ 'setLineSpacing', 'setFont', 'setColor', 'setHeadingSize', 'setBodySize'].forEach(function (id) {
+  el(id).addEventListener('change', readSettingsPanel);
+  el(id).addEventListener('input', readSettingsPanel);
+});
+</script>
+
+<script>
+'use strict';
+
+/* ===== メモの開閉・作成・削除 ===== */
+function openMemo(id) {
+  currentId = id;
+  var m = currentMemo();
+  if (!m) { return; }
+  editor.innerHTML = m.html || '<div><br></div>';
+  fillSettingsPanel();
+  applySettingsToView();
+  renderMemoList();
+}
+function createMemo() {
+  var base = currentMemo() ? cloneSettings(currentMemo().settings) : defaultSettings();
+  var m = { id: uid(), html: '<div><br></div>', settings: base, updatedAt: Date.now() };
+  data.memos.push(m);
+  onDataChanged();
+  openMemo(m.id);
+  editor.focus();
+  /* カーソルを先頭へ */
+  var sel = window.getSelection();
+  var range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+function deleteMemo() {
+  var m = currentMemo();
+  if (!m) { return; }
+  if (!window.confirm('このメモを削除しますか？\nタイトル： ' + extractTitle(m.html))) { return; }
+  data.memos = data.memos.filter(function (x) { return x.id !== m.id; });
+  onDataChanged();
+  if (data.memos.length === 0) {
+    createMemo();
+    return;
+  }
+  var sorted = data.memos.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  openMemo(sorted[0].id);
+}
+el('btnNew').addEventListener('click', createMemo);
+el('btnNewTop').addEventListener('click', createMemo);
+el('btnDelete').addEventListener('click', deleteMemo);
+
+/* ===== 編集時の処理 ===== */
+function onDataChanged() {
+  saveLocal(true);
+  if (ghConfigured()) {
+    setStatus('入力中…');
+    scheduleSync();
+  } else {
+    setStatus('保存済み');
+  }
+}
+editor.addEventListener('input', function () {
+  var m = currentMemo();
+  if (!m) { return; }
+  styleFirstLine();
+  m.html = editor.innerHTML;
+  m.updatedAt = Date.now();
+  onDataChanged();
+  if (listTimer) { clearTimeout(listTimer); }
+  listTimer = setTimeout(renderMemoList, 400);
+});
+editor.addEventListener('keyup', saveSelection);
+editor.addEventListener('mouseup', saveSelection);
+
+/* ===== 選択範囲の保存・復元（ツールバーの操作で選択が消えるため） ===== */
+function saveSelection() {
+  var sel = window.getSelection();
+  if (sel.rangeCount > 0) {
+    var r = sel.getRangeAt(0);
+    if (editor.contains(r.commonAncestorContainer)) { savedRange = r.cloneRange(); }
+  }
+}
+function restoreSelection() {
+  if (!savedRange) { return false; }
+  var sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(savedRange);
+  return true;
+}
+['tbFont', 'tbColor', 'tbSize'].forEach(function (id) {
+  el(id).addEventListener('mousedown', saveSelection);
+  el(id).addEventListener('focus', saveSelection);
+});
+
+/* ===== 書式の適用 ===== */
+function wrapSelectionWithSpan(styleObj) {
+  if (!restoreSelection()) { return false; }
+  var sel = window.getSelection();
+  if (sel.rangeCount === 0 || sel.isCollapsed) { return false; }
+  var range = sel.getRangeAt(0);
+  var span = document.createElement('span');
+  for (var k in styleObj) { span.style[k] = styleObj[k]; }
+  var contents = range.extractContents();
+  if (!contents.textContent) { return false; }
+  span.appendChild(contents);
+  range.insertNode(span);
+  var newRange = document.createRange();
+  newRange.selectNodeContents(span);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+  savedRange = newRange.cloneRange();
+  return true;
+}
+function commitEditorChange() {
+  var m = currentMemo();
+  if (!m) { return; }
+  styleFirstLine();
+  m.html = editor.innerHTML;
+  m.updatedAt = Date.now();
+  onDataChanged();
+  renderMemoList();
+}
+el('btnApplySel').addEventListener('click', function () {
+  var style = {
+    fontFamily: fontStack(el('tbFont').value.trim() || DEFAULT_FONT_FAMILY),
+    color: el('tbColor').value || '#1a1a1a',
+    fontSize: (parseFloat(el('tbSize').value) || 11) + 'pt'
+  };
+  if (wrapSelectionWithSpan(style)) {
+    commitEditorChange();
+  } else {
+    setStatus('先に、変更したい文字を選んでください');
+    editor.focus();
+  }
+});
+el('btnBold').addEventListener('click', function () {
+  editor.focus();
+  if (!restoreSelection()) { return; }
+  document.execCommand('bold', false, null);
+  commitEditorChange();
+});
+el('btnApplyAll').addEventListener('click', function () {
+  var m = currentMemo();
+  if (!m) { return; }
+  var font = el('tbFont').value.trim() || DEFAULT_FONT_FAMILY;
+  var color = el('tbColor').value || '#1a1a1a';
+  var size = parseFloat(el('tbSize').value) || 11;
+  /* 文書全体：中の部分指定（フォント・色・大きさ）を外してから基本設定で統一する */
+  var styled = editor.querySelectorAll('span, font');
+  styled.forEach(function (node) {
+    node.style.fontFamily = '';
+    node.style.color = '';
+    node.style.fontSize = '';
+  });
+  m.settings.fontFamily = font;
+  m.settings.textColor = color;
+  m.settings.bodySize = size;
+  fillSettingsPanel();
+  applySettingsToView();
+  commitEditorChange();
+});
+
+/* ===== テンプレート ===== */
+function renderTemplates() {
+  var sel = el('tplList');
+  sel.innerHTML = '';
+  data.templates.forEach(function (t, idx) {
+    var opt = document.createElement('option');
+    opt.value = String(idx);
+    opt.textContent = t.name;
+    sel.appendChild(opt);
+  });
+}
+el('btnTplSave').addEventListener('click', function () {
+  var m = currentMemo();
+  if (!m) { return; }
+  var name = el('tplName').value.trim();
+  if (!name) { setStatus('テンプレート名を入力してください'); return; }
+  var existing = -1;
+  data.templates.forEach(function (t, i) { if (t.name === name) { existing = i; } });
+  var entry = { name: name, settings: cloneSettings(m.settings) };
+  if (existing >= 0) {
+    if (!window.confirm('同じ名前のテンプレートがあります。上書きしますか？')) { return; }
+    data.templates[existing] = entry;
+  } else {
+    data.templates.push(entry);
+  }
+  el('tplName').value = '';
+  renderTemplates();
+  onDataChanged();
+  setStatus('テンプレート「' + name + '」を保存しました');
+});
+el('btnTplApply').addEventListener('click', function () {
+  var m = currentMemo();
+  var sel = el('tplList');
+  if (!m || sel.selectedIndex < 0) { setStatus('適用するテンプレートを選んでください'); return; }
+  var t = data.templates[sel.selectedIndex];
+  if (!t) { return; }
+  m.settings = cloneSettings(t.settings);
+  fillSettingsPanel();
+  applySettingsToView();
+  commitEditorChange();
+  setStatus('テンプレート「' + t.name + '」を適用しました');
+});
+el('btnTplDelete').addEventListener('click', function () {
+  var sel = el('tplList');
+  if (sel.selectedIndex < 0) { setStatus('削除するテンプレートを選んでください'); return; }
+  var t = data.templates[sel.selectedIndex];
+  if (!window.confirm('テンプレート「' + t.name + '」を削除しますか？')) { return; }
+  data.templates.splice(sel.selectedIndex, 1);
+  renderTemplates();
+  onDataChanged();
+});
+
+/* ===== フォント候補（datalist） ===== */
+function renderFontDatalist() {
+  var dl = el('fontList');
+  dl.innerHTML = '';
+  var seen = {};
+  var all = COMMON_FONTS.concat(fontFamilies);
+  all.forEach(function (f) {
+    if (seen[f]) { return; }
+    seen[f] = true;
+    var opt = document.createElement('option');
+    opt.value = f;
+    dl.appendChild(opt);
+  });
+}
+</script>
+
+<script>
+'use strict';
+
+/* ===== Base64（UTF-8・日本語対応） ===== */
+function encodeBase64Utf8(text) {
+  var bytes = new TextEncoder().encode(text);
+  var bin = '';
+  var CHUNK = 0x8000;
+  for (var i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+function decodeBase64Utf8(b64) {
+  var bin = atob(String(b64).replace(/\s/g, ''));
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) { bytes[i] = bin.charCodeAt(i); }
+  return new TextDecoder().decode(bytes);
+}
+
+/* ===== GitHub API ===== */
+function ghUrl() {
+  return 'https://api.github.com/repos/' + encodeURIComponent(ghSettings.owner) + '/' +
+    encodeURIComponent(ghSettings.repo) + '/contents/' + ghSettings.path.split('/').map(encodeURIComponent).join('/');
+}
+function ghHeaders() {
+  return {
+    'Authorization': 'Bearer ' + ghSettings.token,
+    'Accept': 'application/vnd.github+json',
+    'Content-Type': 'application/json'
+  };
+}
+function showConflict(show) {
+  el('conflictBanner').className = 'banner conflict' + (show ? ' show' : '');
+}
+function updateLocalBanner() {
+  el('localBanner').className = 'banner local' + (ghConfigured() ? '' : ' show');
+}
+
+/* GitHubから読み込む。成功時は {ok:true}、404は {ok:true, notFound:true} */
+async function apiLoad() {
+  var res = await fetch(ghUrl(), { headers: ghHeaders() });
+  if (res.status === 404) {
+    fileSha = null;
+    localStorage.removeItem(LS_SHA);
+    return { ok: true, notFound: true };
+  }
+  if (!res.ok) { return { ok: false, status: res.status }; }
+  var json = await res.json();
+  fileSha = json.sha || null;
+  if (fileSha) { localStorage.setItem(LS_SHA, fileSha); }
+  var parsed = JSON.parse(decodeBase64Utf8(json.content || ''));
+  if (parsed && Array.isArray(parsed.memos)) {
+    data.memos = parsed.memos.map(function (m) {
+      return { id: m.id || uid(), html: m.html || '', settings: cloneSettings(m.settings), updatedAt: m.updatedAt || 0 };
+    });
+    data.templates = Array.isArray(parsed.templates) ? parsed.templates.map(function (t) {
+      return { name: t.name, settings: cloneSettings(t.settings) };
+    }) : [];
+  }
+  saveLocal(false);
+  clearUnsynced();
+  return { ok: true };
+}
+
+/* GitHubへ保存する。競合時は競合バナーを出す */
+async function apiSave(force) {
+  if (!ghConfigured()) { return { ok: false, reason: 'not-configured' }; }
+  setStatus('GitHubへ保存中…');
+  var payload = { version: 1, memos: data.memos, templates: data.templates };
+  var body = { message: 'メモを保存', content: encodeBase64Utf8(JSON.stringify(payload, null, 2)) };
+  if (fileSha) { body.sha = fileSha; }
+  var res;
+  try {
+    res = await fetch(ghUrl(), { method: 'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
+  } catch (e) {
+    setStatus('保存エラー（内容はこのPCに残っています）', true);
+    return { ok: false, reason: 'network' };
+  }
+  if (res.status === 409 || res.status === 412) {
+    showConflict(true);
+    setStatus('保存エラー（内容はこのPCに残っています）', true);
+    return { ok: false, reason: 'conflict' };
+  }
+  if (!res.ok) {
+    setStatus('保存エラー（内容はこのPCに残っています）', true);
+    return { ok: false, reason: 'http', status: res.status };
+  }
+  var json = await res.json();
+  if (json && json.content && json.content.sha) {
+    fileSha = json.content.sha;
+    localStorage.setItem(LS_SHA, fileSha);
+  }
+  clearUnsynced();
+  setStatus('保存済み');
+  return { ok: true };
+}
+
+function scheduleSync() {
+  if (syncTimer) { clearTimeout(syncTimer); }
+  syncTimer = setTimeout(function () {
+    if (unsynced) { apiSave(false); }
+  }, 3000);
+}
+
+el('btnSave').addEventListener('click', async function () {
+  var m = currentMemo();
+  if (m) { m.html = editor.innerHTML; }
+  saveLocal(true);
+  if (!ghConfigured()) {
+    clearUnsynced();
+    setStatus('保存済み');
+    return;
+  }
+  await apiSave(false);
+});
+
+el('btnLoadLatest').addEventListener('click', async function () {
+  if (!window.confirm('このPCにある未保存の変更は破棄されます。相手の最新版を読み直しますか？')) { return; }
+  showConflict(false);
+  var r = await apiLoad();
+  if (r.ok) {
+    if (data.memos.length === 0) { createMemo(); return; }
+    var sorted = data.memos.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+    openMemo(sorted[0].id);
+    renderTemplates();
+    setStatus('保存済み');
+  } else {
+    setStatus('保存エラー（内容はこのPCに残っています）', true);
+  }
+});
+el('btnForceSave').addEventListener('click', async function () {
+  /* 最新の sha だけを取り直してから、自分の内容で保存する */
+  try {
+    var res = await fetch(ghUrl(), { headers: ghHeaders() });
+    if (res.ok) {
+      var json = await res.json();
+      fileSha = json.sha || null;
+      if (fileSha) { localStorage.setItem(LS_SHA, fileSha); }
+    } else if (res.status === 404) {
+      fileSha = null;
+      localStorage.removeItem(LS_SHA);
+    }
+  } catch (e) { /* 取得できなければ次の保存で競合表示に戻る */ }
+  showConflict(false);
+  await apiSave(true);
+});
+
+el('btnPrint').addEventListener('click', function () { window.print(); });
+
+/* ===== GitHub設定ダイアログ ===== */
+var ghDialog = el('ghDialog');
+el('btnGhSettings').addEventListener('click', function () {
+  el('ghOwner').value = ghSettings.owner;
+  el('ghRepo').value = ghSettings.repo;
+  el('ghPath').value = ghSettings.path;
+  el('ghToken').value = ghSettings.token;
+  ghDialog.showModal();
+});
+el('btnGhCancel').addEventListener('click', function () { ghDialog.close(); });
+el('btnGhSave').addEventListener('click', async function () {
+  ghSettings.owner = el('ghOwner').value.trim() || 'cooljoe777-sudo';
+  ghSettings.repo = el('ghRepo').value.trim() || 'memo-data';
+  ghSettings.path = el('ghPath').value.trim() || 'data.json';
+  ghSettings.token = el('ghToken').value.trim();
+  localStorage.setItem(LS_GH, JSON.stringify(ghSettings));
+  ghDialog.close();
+  updateLocalBanner();
+  if (!ghConfigured()) { setStatus('保存済み'); return; }
+  setStatus('GitHubへ保存中…');
+  if (unsynced) {
+    /* このPCに未送信の内容がある場合は、読み込みで消さないよう、先に保存を試みる */
+    var sr = await apiSave(false);
+    if (!sr.ok && sr.reason !== 'conflict') {
+      /* GitHub側にまだファイルが無い等は apiSave で作成される。それ以外は状態表示済み */
+    }
+  } else {
+    var lr = await apiLoad();
+    if (lr.ok && !lr.notFound) {
+      renderTemplates();
+      renderMemoList();
+      if (currentMemo()) { openMemo(currentId); }
+      setStatus('保存済み');
+    } else if (lr.ok && lr.notFound) {
+      await apiSave(false);
+    } else {
+      setStatus('保存エラー（内容はこのPCに残っています）', true);
+    }
+  }
+});
+</script>
+
+<script>
+'use strict';
+
+/* ===== フォント確認画面 ===== */
+function showFontsView() {
+  el('appView').style.display = 'none';
+  el('fontsView').className = 'show';
+  if (location.hash !== '#fonts') { history.replaceState(null, '', '#fonts'); }
+}
+function showEditorView() {
+  el('fontsView').className = '';
+  el('appView').style.display = 'flex';
+  if (location.hash) { history.replaceState(null, '', location.pathname + location.search); }
+}
+el('btnFonts').addEventListener('click', showFontsView);
+el('btnBackToEditor').addEventListener('click', showEditorView);
+
+el('btnLoadFonts').addEventListener('click', async function () {
+  var note = el('fontsNote');
+  if (typeof window.queryLocalFonts !== 'function') {
+    note.textContent = 'この機能は、PC版の Chrome / Edge でのみ使えます。今のブラウザではフォント一覧を取得できないため、フォント名はメモ画面のフォント欄に直接入力してください。';
+    return;
+  }
+  note.textContent = '取得中…';
+  try {
+    var fonts = await window.queryLocalFonts();
+    var seen = {};
+    fonts.forEach(function (f) { if (f && f.family) { seen[f.family] = true; } });
+    fontFamilies = Object.keys(seen).sort(function (a, b) { return a.localeCompare(b); });
+    renderFontGrid();
+    renderFontDatalist();
+    note.textContent = fontFamilies.length + ' 件のフォントが見つかりました。フォント名をクリックすると、右側に見本が表示されます。';
+  } catch (e) {
+    note.textContent = 'フォント一覧を取得できませんでした。ブラウザの許可画面で「許可」が選ばれているか確認してください。フォント名はメモ画面のフォント欄に直接入力することもできます。';
+  }
+});
+function renderFontGrid() {
+  var grid = el('fontGrid');
+  grid.innerHTML = '';
+  fontFamilies.forEach(function (family) {
+    var cell = document.createElement('div');
+    cell.className = 'font-cell' + (family === selectedFontFamily ? ' selected' : '');
+    cell.style.fontFamily = '"' + family.replace(/"/g, '') + '"';
+    cell.textContent = family;
+    cell.title = family;
+    cell.addEventListener('click', function () { selectFontFamily(family); });
+    grid.appendChild(cell);
+  });
+}
+function applyPreviewFont() {
+  if (!selectedFontFamily) { return; }
+  var fam = '"' + selectedFontFamily.replace(/"/g, '') + '"';
+  ['pvDigits', 'pvKana', 'pvKanji', 'pvCustom'].forEach(function (id) { el(id).style.fontFamily = fam; });
+}
+function selectFontFamily(family) {
+  selectedFontFamily = family;
+  el('pvName').textContent = family;
+  el('btnUseFont').disabled = false;
+  applyPreviewFont();
+  renderFontGrid();
+}
+el('pvCustomInput').addEventListener('input', function () {
+  el('pvCustom').textContent = el('pvCustomInput').value;
+  applyPreviewFont();
+});
+el('btnUseFont').addEventListener('click', function () {
+  if (!selectedFontFamily) { return; }
+  var m = currentMemo();
+  if (!m) { createMemo(); m = currentMemo(); }
+  m.settings.fontFamily = selectedFontFamily;
+  fillSettingsPanel();
+  applySettingsToView();
+  commitEditorChange();
+  showEditorView();
+  setStatus('フォントを「' + selectedFontFamily + '」にしました');
+});
+
+/* ===== 初期化 ===== */
+function init() {
+  renderFontDatalist();
+  renderTemplates();
+  updateLocalBanner();
+  if (data.memos.length === 0) {
+    var m = { id: uid(), html: '<div><br></div>', settings: defaultSettings(), updatedAt: Date.now() };
+    data.memos.push(m);
+    saveLocal(false);
+  }
+  var sorted = data.memos.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  openMemo(sorted[0].id);
+  if (location.hash === '#fonts') { showFontsView(); }
+  if (ghConfigured() && !unsynced) {
+    /* 未送信の変更が無い時だけ、起動時にGitHubの最新版を取りに行く */
+    apiLoad().then(function (r) {
+      if (r.ok && !r.notFound && data.memos.length > 0) {
+        renderTemplates();
+        var s2 = data.memos.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+        openMemo(s2[0].id);
+        setStatus('保存済み');
+      } else if (r.ok && r.notFound) {
+        setStatus('保存済み');
+      } else if (!r.ok) {
+        setStatus('保存エラー（内容はこのPCに残っています）', true);
+      }
+    });
+  } else if (ghConfigured() && unsynced) {
+    showConflict(true);
+  }
+  editor.focus();
+}
+init();
+</script>
+</body>
+</html>
