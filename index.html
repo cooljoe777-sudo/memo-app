@@ -36,7 +36,7 @@
   .banner button { margin-left: 8px; }
 
   .layout { display: flex; flex: 1; min-height: 0; }
-  .sidebar { width: 260px; min-width: 200px; background: #f7f7f7; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
+  .sidebar { width: 260px; min-width: 140px; flex: none; background: #f7f7f7; border-right: 1px solid #ccc; display: flex; flex-direction: column; }
   .sidebar .side-head { padding: 8px; border-bottom: 1px solid #ddd; }
   .sidebar .side-head button { width: 100%; }
   .memo-list { flex: 1; overflow-y: auto; }
@@ -61,7 +61,11 @@
   #editor { outline: none; min-height: 100%; overflow-wrap: break-word; }
   #editor > div, #editor > p { margin: 0; }
 
-  .settings { width: 248px; min-width: 248px; background: #f7f7f7; border-left: 1px solid #ccc; overflow-y: auto; padding: 10px; }
+  .settings { width: 248px; min-width: 180px; flex: none; background: #f7f7f7; border-left: 1px solid #ccc; overflow-y: auto; padding: 10px; }
+  .divider { flex: none; width: 6px; cursor: col-resize; background: transparent; touch-action: none; }
+  .divider:hover, .divider.dragging { background: #9dbede; }
+  .topbar button.on { background: #2f6fb2; color: #fff; border-color: #2f6fb2; }
+  .topbar button.on:hover { background: #285f99; }
   .settings h3 { font-size: 13px; margin: 12px 0 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; }
   .settings h3:first-child { margin-top: 0; }
   .settings .row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 5px 0; }
@@ -103,7 +107,7 @@
   }
   @media print {
     body { background: #fff; height: auto; display: block; }
-    .topbar, .sidebar, .toolbar, .settings, .banner, #fontsView { display: none !important; }
+    .topbar, .sidebar, .toolbar, .settings, .banner, #fontsView, .divider { display: none !important; }
     .layout, .main, .work { display: block; }
     .sheet-wrap { overflow: visible; padding: 0; }
     .sheet { box-shadow: none; margin: 0; width: auto !important; min-height: auto !important; padding: 0 !important; }
@@ -120,6 +124,8 @@
     <button id="btnSave" type="button" class="primary">保存</button>
     <button id="btnPrint" type="button">印刷</button>
     <button id="btnFonts" type="button">フォント確認</button>
+    <button id="btnToggleList" type="button" class="on" title="メモ一覧の表示／非表示を切り替えます">一覧</button>
+    <button id="btnToggleSettings" type="button" class="on" title="ページ設定の表示／非表示を切り替えます">設定</button>
     <span class="spacer"></span>
     <span class="status" id="statusLine">保存済み</span>
     <button id="btnGhSettings" type="button">⚙ GitHub設定</button>
@@ -133,10 +139,11 @@
   </div>
 
   <div class="layout">
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="side-head"><button id="btnNew" type="button">＋ 新しいメモ</button></div>
       <div class="memo-list" id="memoList"></div>
     </aside>
+    <div class="divider" id="divLeft" title="ドラッグで一覧の幅を変えられます"></div>
 
     <div class="main">
       <div class="toolbar">
@@ -159,7 +166,8 @@
           </div>
         </div>
 
-        <aside class="settings">
+        <div class="divider" id="divRight" title="ドラッグで設定の幅を変えられます"></div>
+        <aside class="settings" id="settingsPanel">
           <h3>ページ設定</h3>
           <div class="row"><label>用紙</label>
             <select id="setPaper">
@@ -1018,6 +1026,81 @@ function init() {
   editor.focus();
 }
 init();
+</script>
+<script>
+'use strict';
+/* ===== 画面レイアウト（一覧・設定の表示切替と幅調整。このPCごとに記憶） ===== */
+(function () {
+  var LS_LAYOUT = 'memoAppGithub.layout.v1';
+  var layout = { lw: 260, rw: 248, lh: false, rh: false };
+  try {
+    var saved = JSON.parse(localStorage.getItem(LS_LAYOUT) || 'null');
+    if (saved) {
+      if (typeof saved.lw === 'number') layout.lw = saved.lw;
+      if (typeof saved.rw === 'number') layout.rw = saved.rw;
+      layout.lh = !!saved.lh;
+      layout.rh = !!saved.rh;
+    }
+  } catch (e) { /* 壊れていたら初期値で続行 */ }
+
+  var sidebar = document.getElementById('sidebar');
+  var settings = document.getElementById('settingsPanel');
+  var divLeft = document.getElementById('divLeft');
+  var divRight = document.getElementById('divRight');
+  var btnList = document.getElementById('btnToggleList');
+  var btnSettings = document.getElementById('btnToggleSettings');
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function saveLayout() {
+    try { localStorage.setItem(LS_LAYOUT, JSON.stringify(layout)); } catch (e) { /* 保存できなくても動作は続ける */ }
+  }
+
+  function applyLayout() {
+    layout.lw = clamp(layout.lw, 140, 480);
+    layout.rw = clamp(layout.rw, 180, 420);
+    sidebar.style.width = layout.lw + 'px';
+    settings.style.width = layout.rw + 'px';
+    sidebar.classList.toggle('hidden', layout.lh);
+    divLeft.classList.toggle('hidden', layout.lh);
+    settings.classList.toggle('hidden', layout.rh);
+    divRight.classList.toggle('hidden', layout.rh);
+    btnList.classList.toggle('on', !layout.lh);
+    btnSettings.classList.toggle('on', !layout.rh);
+  }
+
+  btnList.addEventListener('click', function () { layout.lh = !layout.lh; applyLayout(); saveLayout(); });
+  btnSettings.addEventListener('click', function () { layout.rh = !layout.rh; applyLayout(); saveLayout(); });
+
+  function makeDrag(divider, isLeft) {
+    divider.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      var startX = e.clientX;
+      var startW = isLeft ? sidebar.getBoundingClientRect().width : settings.getBoundingClientRect().width;
+      divider.classList.add('dragging');
+      divider.setPointerCapture(e.pointerId);
+      function onMove(ev) {
+        var dx = ev.clientX - startX;
+        if (isLeft) { layout.lw = startW + dx; } else { layout.rw = startW - dx; }
+        applyLayout();
+      }
+      function onUp() {
+        divider.classList.remove('dragging');
+        divider.removeEventListener('pointermove', onMove);
+        divider.removeEventListener('pointerup', onUp);
+        divider.removeEventListener('pointercancel', onUp);
+        saveLayout();
+      }
+      divider.addEventListener('pointermove', onMove);
+      divider.addEventListener('pointerup', onUp);
+      divider.addEventListener('pointercancel', onUp);
+    });
+  }
+  makeDrag(divLeft, true);
+  makeDrag(divRight, false);
+
+  applyLayout();
+})();
 </script>
 </body>
 </html>
