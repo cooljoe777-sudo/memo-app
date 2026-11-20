@@ -565,6 +565,15 @@ editor.addEventListener('input', function () {
   if (listTimer) { clearTimeout(listTimer); }
   listTimer = setTimeout(renderMemoList, 400);
 });
+editor.addEventListener('paste', function (e) {
+  /* 貼り付けは文字だけにする（元の大きさ・太字などの書式を持ち込まない） */
+  e.preventDefault();
+  var text = '';
+  if (e.clipboardData) { text = e.clipboardData.getData('text/plain') || ''; }
+  if (text) {
+    document.execCommand('insertText', false, text);
+  }
+});
 editor.addEventListener('keyup', saveSelection);
 editor.addEventListener('mouseup', saveSelection);
 
@@ -641,12 +650,26 @@ el('btnApplyAll').addEventListener('click', function () {
   var font = el('tbFont').value.trim() || DEFAULT_FONT_FAMILY;
   var color = el('tbColor').value || '#1a1a1a';
   var size = parseFloat(el('tbSize').value) || 11;
-  /* 文書全体：中の部分指定（フォント・色・大きさ）を外してから基本設定で統一する */
-  var styled = editor.querySelectorAll('span, font');
+  /* 文書全体：貼り付け等で付いた個別指定（フォント・色・大きさ・太字）を全て外してから基本設定で統一する */
+  var unwrapTags = editor.querySelectorAll('b, strong, font, i, em, u, s');
+  unwrapTags.forEach(function (node) {
+    if (!node.parentNode) { return; }
+    while (node.firstChild) { node.parentNode.insertBefore(node.firstChild, node); }
+    node.parentNode.removeChild(node);
+  });
+  var styled = editor.querySelectorAll('*');
   styled.forEach(function (node) {
-    node.style.fontFamily = '';
-    node.style.color = '';
-    node.style.fontSize = '';
+    if (node.style) {
+      node.style.fontFamily = '';
+      node.style.color = '';
+      node.style.fontSize = '';
+      node.style.fontWeight = '';
+    }
+    if (node.removeAttribute) {
+      node.removeAttribute('size');
+      node.removeAttribute('face');
+      node.removeAttribute('color');
+    }
   });
   m.settings.fontFamily = font;
   m.settings.textColor = color;
